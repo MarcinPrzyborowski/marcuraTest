@@ -1,0 +1,13 @@
+exchange:
+  rate:
+    cron: 0 5 0 * * *
+    timezone: UTC
+    api:
+      url: http://data.fixer.io/api
+      key: KEY
+
+spring:
+  profiles:
+    default: local
+  liquibase:
+    change-log: db/changelog.yml
