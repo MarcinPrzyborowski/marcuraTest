@@ -5,6 +5,7 @@ import com.example.marcuratest.entity.SpreadEntity;
 import com.example.marcuratest.exceptions.DefaultSpreadNotFoundException;
 import com.example.marcuratest.exceptions.ExchangeRateNotFoundException;
 import com.example.marcuratest.repository.ExchangeRateRepository;
+import com.example.marcuratest.repository.RequestCounterRepository;
 import com.example.marcuratest.repository.SpreadRepository;
 import com.example.marcuratest.service.impl.ExchangeRateServiceImpl;
 import org.junit.Test;
@@ -26,6 +27,9 @@ public class ExchangeRateServiceImplTest {
 
     @Mock
     ExchangeRateRepository exchangeRateRepository;
+
+    @Mock
+    RequestCounterRepository requestCounterRepository;
 
     @Mock
     SpreadRepository spreadRepository;
@@ -79,11 +83,12 @@ public class ExchangeRateServiceImplTest {
 
         when(exchangeRateRepository.findFirstByTargetCurrencyAndDate(eq("EUR"), any(Date.class))).thenReturn(Optional.of(fromCurrencyExchange));
         when(exchangeRateRepository.findFirstByTargetCurrencyAndDate(eq("PLN"), any(Date.class))).thenReturn(Optional.of(toCurrencyExchange));
+        when(requestCounterRepository.findFirstByCurrencyFromAndCurrencyToAndDate(eq("EUR"), eq("PLN"), eq(date))).thenReturn(Optional.empty());
 
         var x = exchangeRateService.get("EUR", "PLN", Optional.of(date));
 
         assertSame("EUR", x.getCurrencyFrom());
         assertSame("PLN", x.getCurrencyTo());
-        assertSame(BigDecimal.valueOf(4.540).setScale(10), x.getExchange().setScale(10));
+        assertEquals(BigDecimal.valueOf(4.540).setScale(10), x.getExchange().setScale(10));
     }
 }

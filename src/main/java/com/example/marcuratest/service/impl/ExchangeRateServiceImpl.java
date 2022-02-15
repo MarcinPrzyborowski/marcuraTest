@@ -2,14 +2,20 @@ package com.example.marcuratest.service.impl;
 
 import com.example.marcuratest.dto.ExchangeResponse;
 import com.example.marcuratest.entity.ExchangeRateEntity;
+import com.example.marcuratest.entity.RequestCounterEntity;
 import com.example.marcuratest.entity.SpreadEntity;
 import com.example.marcuratest.exceptions.DefaultSpreadNotFoundException;
 import com.example.marcuratest.exceptions.ExchangeRateNotFoundException;
 import com.example.marcuratest.repository.ExchangeRateRepository;
+import com.example.marcuratest.repository.RequestCounterRepository;
 import com.example.marcuratest.repository.SpreadRepository;
 import com.example.marcuratest.service.ExchangeRateService;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.Date;
@@ -21,13 +27,20 @@ public class ExchangeRateServiceImpl implements ExchangeRateService {
 
     final private ExchangeRateRepository exchangeRateRepository;
     final private SpreadRepository spreadRepository;
+    final private RequestCounterRepository requestCounterRepository;
 
-    public ExchangeRateServiceImpl(ExchangeRateRepository exchangeRateRepository, SpreadRepository spreadRepository) {
+    public ExchangeRateServiceImpl(
+            ExchangeRateRepository exchangeRateRepository,
+            SpreadRepository spreadRepository,
+            RequestCounterRepository requestCounterRepository
+    ) {
         this.exchangeRateRepository = exchangeRateRepository;
         this.spreadRepository = spreadRepository;
+        this.requestCounterRepository = requestCounterRepository;
     }
 
     @Override
+    @Transactional
     public ExchangeResponse get(String currencyFrom, String currencyTo, Optional<Date> date) {
 
         Set<String> currencies = Set.of(currencyFrom, currencyTo);
@@ -48,12 +61,31 @@ public class ExchangeRateServiceImpl implements ExchangeRateService {
                 .findFirst()
                 .orElse(defaultSpread);
 
+        Date selectedDate = date.orElse(new Date());
         ExchangeRateEntity fromCurrencyExchange = exchangeRateRepository
-                .findFirstByTargetCurrencyAndDate(currencyFrom, date.orElse(new Date()))
+                .findFirstByTargetCurrencyAndDate(currencyFrom, selectedDate)
                 .orElseThrow(ExchangeRateNotFoundException::new);
         ExchangeRateEntity toCurrencyExchange = exchangeRateRepository
-                .findFirstByTargetCurrencyAndDate(currencyTo, date.orElse(new Date()))
+                .findFirstByTargetCurrencyAndDate(currencyTo, selectedDate)
                 .orElseThrow(ExchangeRateNotFoundException::new);
+
+        Optional<RequestCounterEntity> requestCounter = requestCounterRepository
+                .findFirstByCurrencyFromAndCurrencyToAndDate(currencyFrom, currencyTo, selectedDate);
+        RequestCounterEntity requestCounterEntity;
+        if (requestCounter.isEmpty()) {
+            requestCounterEntity = RequestCounterEntity
+                    .builder()
+                    .currencyFrom(currencyFrom)
+                    .currencyTo(currencyTo)
+                    .date(selectedDate)
+                    .counter(0L)
+                    .build();
+        } else {
+            requestCounterEntity = requestCounter.get();
+        }
+
+        requestCounterEntity.increaseCounter();
+        requestCounterRepository.save(requestCounterEntity);
 
         BigDecimal toCurrencyRate = toCurrencyExchange.getRate();
         BigDecimal fromCurrencyRate = fromCurrencyExchange.getRate();
